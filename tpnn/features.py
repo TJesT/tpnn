@@ -98,6 +98,10 @@ def remove_strong_relations(
     )
 
 
+def remove_na(features: pd.DataFrame, inplace: bool = False) -> pd.DataFrame | None:
+    print(features.isna().any(axis=1))
+
+
 def _have_any_relation(corr: pd.DataFrame) -> "pd.Series[bool]":
     """Убирать признак, если он скоррелирован хотя бы с одним другим признаком."""
     exclude = corr.any(axis=1)

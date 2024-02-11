@@ -7,6 +7,7 @@ from tpnn.features import (
     normalize,
     replace_categorical_values,
     remove_outliers_zscore,
+    remove_na,
 )
 
 df = pd.DataFrame(
@@ -27,7 +28,7 @@ print(centerize(df))
 print(normalize(df))
 print(replace_categorical_values(df))
 print(remove_outliers_zscore(df))
-
+remove_na(df)
 # rsr_except_one(df, inplace=True)
 remove_outliers_zscore(df, inplace=True)
 print(df)
