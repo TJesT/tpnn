@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 from ..core.pipeline import Pipeable
-from ..core.types import pdPipeable, column_name
+from ..core.types import pdPipeable, Label
 
 
 def _scale_minmax(numerics: pd.DataFrame) -> pd.DataFrame:
@@ -31,7 +31,7 @@ class Scaler(pdPipeable):
 
     def __init__(
         self,
-        columns: Literal["all"] | list[column_name] = "all",
+        columns: Literal["all"] | list[Label] = "all",
         strategy: Literal["minmax", "standard"] = "minmax",
     ) -> None:
         self.scaling = self.__scale_mapping.get(strategy)

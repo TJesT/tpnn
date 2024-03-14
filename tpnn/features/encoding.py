@@ -5,12 +5,12 @@ import numpy as np
 
 
 from ..core.exceptions import KeywordArgumentNotProvided
-from ..core.types import pdPipeable, column_name, Pipeable
+from ..core.types import pdPipeable, Label, Pipeable
 
-Encoder = Callable[[pd.DataFrame, column_name], pd.DataFrame]
+Encoder = Callable[[pd.DataFrame, Label], pd.DataFrame]
 
 
-def _encode_with_numerics(features: pd.DataFrame, subset: column_name) -> pd.DataFrame:
+def _encode_with_numerics(features: pd.DataFrame, subset: Label) -> pd.DataFrame:
     def convert2codes(column: "pd.Series[pd.Categorical]") -> int:
         return column.cat.codes
 
@@ -21,13 +21,13 @@ def _encode_with_numerics(features: pd.DataFrame, subset: column_name) -> pd.Dat
 
 
 def _encode_with_onehot(
-    features: pd.DataFrame, subset: list[column_name], bool=False
+    features: pd.DataFrame, subset: list[Label], bool=False
 ) -> pd.DataFrame:
     raise NotImplementedError
 
 
 def _discretize_by_bins(
-    features: pd.DataFrame, subset: list[column_name], bins: list[np.number]
+    features: pd.DataFrame, subset: list[Label], bins: list[np.number]
 ) -> pd.DataFrame:
     discretization = features[subset].apply(
         lambda series: pd.cut(series, bins=bins, labels=False), axis=0
@@ -36,7 +36,7 @@ def _discretize_by_bins(
 
 
 def _discretize_by_quantiles(
-    features: pd.DataFrame, subset: list[column_name], quants: int
+    features: pd.DataFrame, subset: list[Label], quants: int
 ) -> pd.DataFrame:
     discretization = features[subset].apply(
         lambda series: pd.qcut(series, q=quants, labels=False), axis=0
@@ -54,11 +54,11 @@ class Encoder(Pipeable[pd.DataFrame, pd.DataFrame]):
 
     def __init__(
         self,
-        columns: column_name | list[column_name],
-        *,
+        columns: Label | list[Label],
         strategy: Literal["codes", "onehot", "bins", "quantiles"] = "codes",
+        /,
         bins: list[np.number] = None,
-        quantiles: int = None
+        quantiles: int = None,
     ):
         self.encoding = self.__encode_mapping.get(strategy)
         self.columns = columns

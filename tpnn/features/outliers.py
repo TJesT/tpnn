@@ -6,7 +6,7 @@ import numpy as np
 from tpnn.core.exceptions import KeywordArgumentNotProvided
 
 from ..core.pipeline import Pipeable
-from ..core.types import column_name, pdPipeable
+from ..core.types import Label, pdPipeable
 
 
 def _zscore_filter(features: pd.DataFrame, thresh: int = 3) -> pd.DataFrame:
@@ -31,9 +31,9 @@ class OutliersFilter(pdPipeable):
 
     def __init__(
         self,
-        column: column_name,
+        column: Label,
         strategy: Literal["zscore", "cluster"] = "zscore",
-        *,
+        /,
         thresh: Optional[float] = None,
     ) -> None:
         self.column = column

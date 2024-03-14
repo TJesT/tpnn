@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+from .core.types import Label
+
 
 def entropy(feature: pd.Series) -> float:
     value_probabilities = feature.value_counts(normalize=True, sort=False)
@@ -8,9 +10,13 @@ def entropy(feature: pd.Series) -> float:
     return -(value_probabilities * np.log2(value_probabilities)).sum()
 
 
-def information_gain(dataframe: pd.DataFrame, feature: str, target: str) -> float:
-    dataframe = dataframe[[feature, target]]
+def information_gain(dataframe: pd.DataFrame, feature: Label, target: Label) -> float:
     target_entropy = entropy(dataframe[target])
+
+    if feature == target:
+        return target_entropy
+
+    dataframe = dataframe[[feature, target]]
 
     def target_probabilty(subset: pd.DataFrame):
         return subset.size / dataframe.shape[0]
@@ -37,6 +43,16 @@ def gain_ratio(dataframe: pd.DataFrame, feature: str, target: str) -> float:
     return info_gain / split_info
 
 
+def gain_ratios(dataframe: pd.DataFrame, target: str) -> list[tuple[Label, float]]:
+    # NOTE: `enumerate` and `i` here only for sorting purposes
+    ratios = [
+        (gain_ratio(dataframe, column, target), i, column)
+        for i, column in enumerate(dataframe.columns)
+    ]
+
+    return [(column, ratio) for ratio, _, column in sorted(ratios, reverse=True)]
+
+
 if __name__ == "__main__":
     df = pd.DataFrame.from_dict(
         {
@@ -47,4 +63,4 @@ if __name__ == "__main__":
     )
 
     print(information_gain(df, "A", "Target"))
-    print(gain_ratio(df, "A", "Target"))
+    print(gain_ratio(df, "Target", "Target"))

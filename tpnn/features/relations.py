@@ -3,10 +3,10 @@ import numpy as np
 
 from typing import Literal, override
 from ..core.pipeline import Pipeable
-from ..core.types import column_name, pdPipeable
+from ..core.types import Label, pdPipeable
 
 
-def _filter_if_any(corr: pd.DataFrame) -> "pd.Series[column_name]":
+def _filter_if_any(corr: pd.DataFrame) -> "pd.Series[Label]":
     """
     Получить некоррелируюшие признаки за счёт удаления всех, что
     скоррелированы хотя бы с одним другим признаком.
@@ -15,7 +15,7 @@ def _filter_if_any(corr: pd.DataFrame) -> "pd.Series[column_name]":
     return include[include].index
 
 
-def _filter_sequentially(corr: pd.DataFrame) -> "pd.Series[column_name]":
+def _filter_sequentially(corr: pd.DataFrame) -> "pd.Series[Label]":
     """
     Получить некоррелирующие признаки за счёт последовательного удаления
     наиболее скоррелированных.
@@ -25,11 +25,11 @@ def _filter_sequentially(corr: pd.DataFrame) -> "pd.Series[column_name]":
     3) Повторять предыдущие два шага, пока сумма по таблице не будет равна 0.
     """
 
-    def column_sum(row: "pd.Index[column_name]") -> int:
+    def column_sum(row: "pd.Index[Label]") -> int:
         return corr[row].sum()
 
     while corr.values.sum() > 0:
-        column: column_name = max(corr.index, key=column_sum)
+        column: Label = max(corr.index, key=column_sum)
         corr.drop(columns=column, index=column, inplace=True)
 
     return corr.index
@@ -58,8 +58,9 @@ class CorelationFilter(pdPipeable):
 
     def __init__(
         self,
-        thresh: float = 0.5,
         strategy: Literal["all", "seq"] = "all",
+        /,
+        thresh: float = 0.5,
     ) -> None:
         self.filter = self.__strategy_mapping.get(strategy)
         self.thresh = thresh
