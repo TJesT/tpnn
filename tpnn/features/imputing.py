@@ -5,8 +5,7 @@ from typing import Any, Literal
 
 from ..core.exceptions import KeywordArgumentNotProvided
 from ..core.pipeline import Pipeable
-
-type column_name = str
+from ..core.types import column_name, pdPipeable
 
 
 def _find_most_frequent(series: pd.Series) -> Any:
@@ -58,7 +57,7 @@ def _impute_with_next_value(
     return features
 
 
-class Imputer(Pipeable[pd.DataFrame, pd.DataFrame]):
+class Imputer(pdPipeable):
     __impute_mapping = {
         "drop": pd.DataFrame.dropna,
         "freq": _impute_most_frequent,
@@ -79,15 +78,16 @@ class Imputer(Pipeable[pd.DataFrame, pd.DataFrame]):
         self.columns = columns
         self.impute = self.__impute_mapping.get(strategy)
 
-        if strategy == "const" and fill_value is not None:
-            self.impute = partial(self.impute, fill_value=fill_value)
-        else:
-            raise KeywordArgumentNotProvided("fill_value", "impute_constant")
+        if strategy == "const":
+            if fill_value is not None:
+                self.impute = partial(self.impute, fill_value=fill_value)
+            else:
+                raise KeywordArgumentNotProvided("fill_value", "impute_constant")
 
-    def __call__(self, features: pd.DataFrame) -> pd.DataFrame:
+    def __call__(self, _input: pd.DataFrame) -> pd.DataFrame:
         subset = self.columns
 
         if isinstance(subset, str) and subset == "all":
-            subset = features.columns
+            subset = _input.columns
 
-        return self.impute(features, subset=subset)
+        return self.impute(_input, subset=self.columns)

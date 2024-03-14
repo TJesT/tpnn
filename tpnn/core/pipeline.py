@@ -5,22 +5,23 @@ from abc import ABC, abstractmethod
 Input = TypeVar("Input")
 Output = TypeVar("Output")
 OtherInput = TypeVar("OtherInput")
+OtherOutput = TypeVar("OtherOutput")
 
 
 def _validate_IO(
-    right: Union["Pipeable", "Pipeline"],
     left: Union["Pipeable", "Pipeline"],
+    right: Union["Pipeable", "Pipeline"],
 ) -> tuple[type, type]:
-    in_type, out_type = left._io_types
-    self_in_type, self_out_type = right._io_types
+    left_in_type, left_out_type = left._io_types
+    right_in_type, right_out_type = right._io_types
 
-    if f"{out_type}" != f"{self_in_type}":
+    if f"{left_out_type}" != f"{right_in_type}":
         raise TypeError(
-            f"Output type `{out_type}` of {left} "
-            f"mismatches input type `{self_in_type}` of {right}."
+            f"Output type `{left_out_type}` of {left} "
+            f"mismatches input type `{right_in_type}` of {right}."
         )
 
-    return in_type, self_out_type
+    return left_in_type, right_out_type
 
 
 class Pipeline[Input, Output]:
@@ -51,11 +52,11 @@ class Pipeline[Input, Output]:
     def __rrshift__(self, _input):
         match _input:
             case Pipeable():
-                new_in, new_out = _validate_IO(self, _input)
+                new_in, new_out = _validate_IO(_input, self)
                 return Pipeline[new_in, new_out](_input, self)
 
             case Pipeline():
-                new_in, new_out = _validate_IO(self, _input)
+                new_in, new_out = _validate_IO(_input, self)
                 return Pipeline[new_in, new_out](*_input.nodes, self)
 
             case _:
@@ -86,13 +87,32 @@ class Pipeable[Input, Output](ABC):
     def __rrshift__(self, _input):
         match _input:
             case Pipeable():
-                new_in, new_out = _validate_IO(self, _input)
+                new_in, new_out = _validate_IO(_input, self)
                 return Pipeline[new_in, new_out](_input, self)
             case Pipeline():
-                new_in, new_out = _validate_IO(self, _input)
+                new_in, new_out = _validate_IO(_input, self)
                 return Pipeline[new_in, new_out](*_input.nodes, self)
             case _:
                 return self(_input)
+
+    @overload
+    def __rshift__(
+        self, _input: "Pipeable[Output, OtherOutput]"
+    ) -> Pipeline[Input, OtherOutput]: ...
+
+    @overload
+    def __rshift__(
+        self, _input: Pipeline[Output, OtherOutput]
+    ) -> Pipeline[Input, OtherOutput]: ...
+
+    def __rshift__(self, _input):
+        match _input:
+            case Pipeable():
+                new_in, new_out = _validate_IO(self, _input)
+                return Pipeline[new_in, new_out](self, _input)
+            case Pipeline():
+                new_in, new_out = _validate_IO(self, _input)
+                return Pipeline[new_in, new_out](self, *_input.nodes)
 
     @property
     def _io_types(self) -> tuple[type, type]:

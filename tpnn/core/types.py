@@ -1,0 +1,5 @@
+import pandas as pd
+from .pipeline import Pipeable
+
+pdPipeable = Pipeable[pd.DataFrame, pd.DataFrame]
+type column_name = str

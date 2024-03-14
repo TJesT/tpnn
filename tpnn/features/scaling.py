@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 
 from ..core.pipeline import Pipeable
+from ..core.types import pdPipeable, column_name
 
 
 def _scale_minmax(numerics: pd.DataFrame) -> pd.DataFrame:
@@ -21,21 +22,29 @@ def _scale_standard(numerics: pd.DataFrame) -> pd.DataFrame:
     return numerics
 
 
-class Scaler(Pipeable[pd.DataFrame, pd.DataFrame]):
+class Scaler(pdPipeable):
 
     __scale_mapping = {
         "minmax": _scale_minmax,
         "standard": _scale_standard,
     }
 
-    def __init__(self, strategy: Literal["minmax", "standard"] = "minmax") -> None:
+    def __init__(
+        self,
+        columns: Literal["all"] | list[column_name] = "all",
+        strategy: Literal["minmax", "standard"] = "minmax",
+    ) -> None:
         self.scaling = self.__scale_mapping.get(strategy)
+        self.columns = columns
 
-    def __call__(self, features: pd.DataFrame) -> pd.DataFrame:
-        numerics = features.select_dtypes(include=np.number)
+    def __call__(self, _input: pd.DataFrame) -> pd.DataFrame:
+        if isinstance(subset, str) and subset == "all":
+            subset = _input.columns
+
+        numerics = _input[subset].select_dtypes(include=np.number)
 
         scale_results = self.scaling(numerics)
 
-        return features.assign(
+        return _input.assign(
             **{column: scale_results[column] for column in scale_results.columns}
         )

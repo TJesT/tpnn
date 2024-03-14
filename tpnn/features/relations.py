@@ -3,8 +3,7 @@ import numpy as np
 
 from typing import Literal, override
 from ..core.pipeline import Pipeable
-
-type column_name = str
+from ..core.types import column_name, pdPipeable
 
 
 def _filter_if_any(corr: pd.DataFrame) -> "pd.Series[column_name]":
@@ -36,7 +35,7 @@ def _filter_sequentially(corr: pd.DataFrame) -> "pd.Series[column_name]":
     return corr.index
 
 
-class CorelationFilter(Pipeable[pd.DataFrame, pd.DataFrame]):
+class CorelationFilter(pdPipeable):
     """
     Класс для удаления скоррелированных признаков по матрице ковариаций.
     Линейно скоррелированными будут считаться признаки, для которых выполняется
@@ -59,14 +58,14 @@ class CorelationFilter(Pipeable[pd.DataFrame, pd.DataFrame]):
 
     def __init__(
         self,
-        strategy: Literal["all", "seq"] = "all",
         thresh: float = 0.5,
+        strategy: Literal["all", "seq"] = "all",
     ) -> None:
         self.filter = self.__strategy_mapping.get(strategy)
         self.thresh = thresh
 
     @override
-    def __call__(self, features: pd.DataFrame) -> pd.DataFrame:
+    def __call__(self, _input: pd.DataFrame) -> pd.DataFrame:
         """
         Убрать из датафрейма `features` сильно скоррелированные колонки.
 
@@ -82,7 +81,7 @@ class CorelationFilter(Pipeable[pd.DataFrame, pd.DataFrame]):
         Returns:
             pd.DataFrame только c теми колонками, которые друг между другом нескоррелированы.
         """
-        correlation_matrix = features.corr(numeric_only=True)
+        correlation_matrix = _input.corr(numeric_only=True)
 
         diagonal = np.eye(correlation_matrix.shape[0], dtype=bool)
         correlated_matrix = (
@@ -91,4 +90,4 @@ class CorelationFilter(Pipeable[pd.DataFrame, pd.DataFrame]):
 
         columns = self.filter(correlated_matrix)
 
-        return features.loc[:, columns]
+        return _input.loc[:, columns]
