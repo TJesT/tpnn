@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from typing import Literal, override
-from ..core.pipable_base import Pipeable
+from ..core.pipeline import Pipeable
 
 type column_name = str
 
@@ -36,7 +36,7 @@ def _filter_sequentially(corr: pd.DataFrame) -> "pd.Series[column_name]":
     return corr.index
 
 
-class CorelationFilter(Pipeable):
+class CorelationFilter(Pipeable[pd.DataFrame, pd.DataFrame]):
     """
     Класс для удаления скоррелированных признаков по матрице ковариаций.
     Линейно скоррелированными будут считаться признаки, для которых выполняется
@@ -48,7 +48,7 @@ class CorelationFilter(Pipeable):
             скоррелированными.
         `strategy`: Literal['all', 'seq']
             -`'all'`: Удалить все признаки, что скоррелированы хотя бы с одним другим.
-            -`'seq'`: Последовательно удалять признак, больше всего влияющий на остальные.
+            -`'seq'`: Последовательно удалять признак влияющий на остальные больше всего.
 
     """
 
@@ -59,8 +59,8 @@ class CorelationFilter(Pipeable):
 
     def __init__(
         self,
-        thresh: float = 0.5,
         strategy: Literal["all", "seq"] = "all",
+        thresh: float = 0.5,
     ) -> None:
         self.filter = self.__strategy_mapping.get(strategy)
         self.thresh = thresh
@@ -72,7 +72,7 @@ class CorelationFilter(Pipeable):
 
         1) Построить матрицу корреляций для числовых фичей.
         2) Убрать диагональные единицы.
-        3) Применить функцию выбора колонок `corr2exclude_series`.
+        3) Применить фильтр для выбора колонок.
         4) Вернуть часть `features` с нужными колонками.
 
         Args:
@@ -80,7 +80,7 @@ class CorelationFilter(Pipeable):
                 Фрейм с признаками. Могут быть и категориальными, и числовыми.
 
         Returns:
-            Фрейм только c теми колонками, которые друг между другом нескоррелированы.
+            pd.DataFrame только c теми колонками, которые друг между другом нескоррелированы.
         """
         correlation_matrix = features.corr(numeric_only=True)
 

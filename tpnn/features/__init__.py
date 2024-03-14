@@ -1,4 +1,4 @@
-# from .encoding import Encoder
+from .encoding import Encoder
 from .imputing import Imputer
 
 # from .outliers import OutliersFilter

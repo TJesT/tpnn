@@ -2,12 +2,49 @@ import numpy as np
 import pandas as pd
 
 
-def calculate_entropy(feature: pd.Series) -> float:
-    value_counts = feature.value_counts(normalize=True, sort=False)
+def entropy(feature: pd.Series) -> float:
+    value_probabilities = feature.value_counts(normalize=True, sort=False)
 
-    return -(value_counts * np.log2(value_counts)).sum()
+    return -(value_probabilities * np.log2(value_probabilities)).sum()
 
 
-# def calculate_split_information_gain(feature: pd.Series, target: pd.Series) -> float:
+def information_gain(dataframe: pd.DataFrame, feature: str, target: str) -> float:
+    dataframe = dataframe[[feature, target]]
+    target_entropy = entropy(dataframe[target])
 
-#     return calculate_entropy(feature > targets_std)
+    def target_probabilty(subset: pd.DataFrame):
+        return subset.size / dataframe.shape[0]
+
+    def subset_weighted_entropy(subset: pd.DataFrame) -> float:
+        return target_probabilty(subset) * entropy(subset[target])
+
+    weighted_feature_entropy = (
+        dataframe.groupby(dataframe[feature])
+        .apply(subset_weighted_entropy, include_groups=False)
+        .sum()
+    )
+
+    return target_entropy - weighted_feature_entropy
+
+
+def gain_ratio(dataframe: pd.DataFrame, feature: str, target: str) -> float:
+    split_info = entropy(dataframe[feature])
+    if split_info == 0:
+        return 0.0
+
+    info_gain = information_gain(dataframe, feature, target)
+
+    return info_gain / split_info
+
+
+if __name__ == "__main__":
+    df = pd.DataFrame.from_dict(
+        {
+            "A": [0, 1, 0, 1, 0, 1, 2, 1],
+            "B": [1, 1, 1, 0, 1, 0, 1, 1],
+            "Target": [1, 1, 1, 1, 0, 1, 0, 1],
+        }
+    )
+
+    print(information_gain(df, "A", "Target"))
+    print(gain_ratio(df, "A", "Target"))

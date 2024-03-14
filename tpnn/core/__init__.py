@@ -1,1 +1,1 @@
-from .pipable_base import Pipeable
+from .pipeline import Pipeable

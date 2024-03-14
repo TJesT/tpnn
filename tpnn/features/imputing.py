@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 from functools import partial
 from typing import Any, Literal
-from ..core.pipable_base import Pipeable
+
+from ..core.exceptions import KeywordArgumentNotProvided
+from ..core.pipeline import Pipeable
 
 type column_name = str
 
@@ -12,7 +14,7 @@ def _find_most_frequent(series: pd.Series) -> Any:
     return uniques[np.argmax(counts)]
 
 
-def impute_most_frequent(
+def _impute_most_frequent(
     features: pd.DataFrame, subset: list[column_name]
 ) -> pd.DataFrame:
     return features.fillna(
@@ -20,13 +22,13 @@ def impute_most_frequent(
     )
 
 
-def impute_mean(features: pd.DataFrame, subset: list[column_name]) -> pd.DataFrame:
+def _impute_mean(features: pd.DataFrame, subset: list[column_name]) -> pd.DataFrame:
     return features.fillna(
         {column: np.mean(features.loc[:, column].values) for column in subset}
     )
 
 
-def impute_constant(
+def _impute_constant(
     features: pd.DataFrame, subset: list[column_name], fill_value: Any | list[Any]
 ) -> pd.DataFrame:
     if not isinstance(fill_value, list):
@@ -37,7 +39,7 @@ def impute_constant(
     )
 
 
-def impute_with_previous_value(
+def _impute_with_previous_value(
     features: pd.DataFrame, subset: list[column_name]
 ) -> pd.DataFrame:
     features = features.copy()
@@ -46,7 +48,7 @@ def impute_with_previous_value(
     return features
 
 
-def impute_with_next_value(
+def _impute_with_next_value(
     features: pd.DataFrame, subset: list[column_name]
 ) -> pd.DataFrame:
 
@@ -56,30 +58,20 @@ def impute_with_next_value(
     return features
 
 
-class KeywordArgumentNotProvided(Exception):
-    def __init__(self, kwarg_name: str, target_name: str, *args: object) -> None:
-        super().__init__(*args)
-        self.kwarg_name = kwarg_name
-        self.traget_name = target_name
-
-    def __str__(self) -> str:
-        return f"Argument `{self.kwarg_name}` was not provided for `{self.traget_name}`"
-
-
-class Imputer(Pipeable):
+class Imputer(Pipeable[pd.DataFrame, pd.DataFrame]):
     __impute_mapping = {
         "drop": pd.DataFrame.dropna,
-        "freq": impute_most_frequent,
-        "mean": impute_mean,
-        "const": impute_constant,
-        "ffill": impute_with_previous_value,
-        "bfill": impute_with_next_value,
+        "freq": _impute_most_frequent,
+        "mean": _impute_mean,
+        "const": _impute_constant,
+        "ffill": _impute_with_previous_value,
+        "bfill": _impute_with_next_value,
     }
 
     def __init__(
         self,
         columns: Literal["all"] | list[column_name] = "all",
-        strategy: Literal["drop", "freq", "mean", "const"] = "drop",
+        strategy: Literal["drop", "freq", "mean", "const", "ffill", "bfill"] = "drop",
         *,
         fill_value: Any | list[Any] = None,
     ) -> None:
@@ -95,7 +87,7 @@ class Imputer(Pipeable):
     def __call__(self, features: pd.DataFrame) -> pd.DataFrame:
         subset = self.columns
 
-        if isinstance(subset, str):
+        if isinstance(subset, str) and subset == "all":
             subset = features.columns
 
         return self.impute(features, subset=subset)
