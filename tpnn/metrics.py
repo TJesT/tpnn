@@ -18,7 +18,7 @@ def information_gain(dataframe: pd.DataFrame, feature: Label, target: Label) -> 
 
     dataframe = dataframe[[feature, target]]
 
-    def target_probabilty(subset: pd.DataFrame):
+    def target_probabilty(subset: pd.DataFrame) -> float:
         return subset.size / dataframe.shape[0]
 
     def subset_weighted_entropy(subset: pd.DataFrame) -> float:
