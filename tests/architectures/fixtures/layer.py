@@ -1,7 +1,8 @@
 from pytest import fixture
 
 from tpnn.architectures.perceptron import Layer
-from random import randrange
+from tpnn.architectures.perceptron.activation import ActivationBuilder
+from random import randrange, choice, random
 import numpy as np
 
 
@@ -35,7 +36,11 @@ def const_answer():
 
 @fixture(params=[(randrange(1, 50), randrange(1, 50)) for _ in range(10)])
 def layer(request):
-    return Layer(*request.param)
+    func = choice(ActivationBuilder().funcs)
+    arg_names = ActivationBuilder().func_args(func)
+    args = [random() for _ in range(len(arg_names))]
+    activation = ActivationBuilder().build(func, args=args)
+    return Layer(*request.param, activation=activation)
 
 
 @fixture

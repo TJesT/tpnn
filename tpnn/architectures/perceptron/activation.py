@@ -14,13 +14,13 @@ type Activation = Callable[[float], Probabilty]
 #     return
 
 
-def sigmoid(_input: float) -> Probabilty:
+def sigmoid(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
     return 1 / (1 + np.exp(-_input))
 
 
 def get_heaviside_func(thresh: float):
-    def heaviside(_input: float) -> Probabilty:
-        return float(_input > thresh)
+    def heaviside(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+        return np.greater(_input, thresh).astype(float)
 
     return heaviside
 
@@ -35,12 +35,27 @@ class ActivationBuilder(metaclass=Singleton):
     def build(
         self, func: Literal["sigmoid", "heaviside"], *, args: tuple[Any] = ()
     ) -> Activation:
+        varnames = self.func_args(func)
         func = self.__map.get(func)
-        if varnames := set(func.__code__.co_varnames) - {"_input"}:
+
+        if varnames:
             if len(args) != len(varnames):
                 raise TypeError(
                     "Provide exact number of needed arguments. "
-                    f"ActivationBuilder.build(..., args={varnames})"
+                    f"ActivationBuilder.build(..., args={varnames}). "
+                    f"But you provided {args=}"
                 )
             func = func(*args)
+
         return func
+
+    def func_args(self, func: Literal["sigmoid", "heaviside"]) -> tuple[str]:
+        func = self.__map.get(func)
+        args = func.__code__.co_cellvars
+        if "_input" in args:
+            return ()
+        return args
+
+    @property
+    def funcs(self):
+        return tuple(self.__map.keys())
