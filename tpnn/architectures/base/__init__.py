@@ -1,1 +1,1 @@
-from .layer import Layer
+from .layer import LayerBase, FCLayer, ACTLayer

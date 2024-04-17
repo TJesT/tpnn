@@ -25,6 +25,8 @@ def _validate_IO(
 
 
 class Pipeline[Input, Output]:
+    __array_ufunc__ = None
+
     def __init__(self, *nodes) -> None:
         self.nodes = nodes
 
@@ -68,6 +70,8 @@ class Pipeline[Input, Output]:
 
 
 class Pipeable[Input, Output](ABC):
+    __array_ufunc__ = None
+
     @abstractmethod
     def __call__(self, _input: Input) -> Output: ...
 

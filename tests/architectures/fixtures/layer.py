@@ -1,6 +1,6 @@
 from pytest import fixture
 
-from tpnn.architectures.base import Layer
+from tpnn.architectures.base import FCLayer, ACTLayer, LayerBase
 from tpnn.architectures.base.activation import ActivationBuilder
 from random import randrange, choice, random
 import numpy as np
@@ -12,8 +12,8 @@ def const_array():
 
 
 @fixture
-def const_layer():
-    return Layer(
+def const_actlayer():
+    return FCLayer(
         input_dimension=5,
         output_dimension=3,
         weights=np.array(
@@ -30,19 +30,32 @@ def const_layer():
 
 
 @fixture
-def const_answer():
-    return 1 / (1 + np.exp([-1.5, -2.5, -2.5]))
+def fc_const_answer():
+    return np.array([1.5, 2.5, 2.5])
 
 
 @fixture(params=[(randrange(1, 50), randrange(1, 50)) for _ in range(10)])
-def layer(request):
+def fc_layer(request):
+    i, o = request.param
+    return FCLayer(i, o)
+
+
+@fixture(params=[None for _ in range(10)])
+def act_layer(fc_layer: FCLayer):
     func = choice(ActivationBuilder().funcs)
     arg_names = ActivationBuilder().func_args(func)
     args = [random() for _ in range(len(arg_names))]
     activation = ActivationBuilder().build(func, args=args)
-    return Layer(*request.param, activation=activation)
+    return ACTLayer(
+        fc_layer.output_dimension, fc_layer.output_dimension, activation=activation
+    )
 
 
 @fixture
-def array(layer: Layer):
-    return np.random.random(layer.input_dimension) * 2 - 1
+def fc_array(fc_layer: LayerBase):
+    return np.random.random(fc_layer.input_dimension) * 2 - 1
+
+
+@fixture
+def act_array(act_layer: LayerBase):
+    return np.random.random(act_layer.input_dimension) * 2 - 1

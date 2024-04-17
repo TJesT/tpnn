@@ -1,12 +1,14 @@
+from itertools import cycle
 import numpy as np
 from dataclasses import dataclass
 from typing import Iterable, overload
-from .base.layer import Layer
+from tpnn.architectures.base.activation import Activation
+from tpnn.architectures.base.layer import FCLayer, ACTLayer
 
 
 @dataclass
 class Perceptron:
-    layers: list[Layer]
+    layers: list[FCLayer | ACTLayer]
 
     @overload
     def predict(self, _input: list[np.number]) -> np.ndarray: ...
@@ -29,8 +31,12 @@ class Perceptron:
 
         return curr
 
+    @overload
     @classmethod
-    def from_dimensions(cls, dims: Iterable[int]) -> "Perceptron":
+    def from_dimensions(cls, dims: Iterable[int], *, activation: list[Activation] = None) -> "Perceptron": ...
+
+    @classmethod
+    def from_dimensions(cls, dims: Iterable[int], *, activation: Activation = None) -> "Perceptron":
         dims = list(dims)
 
         if any(not isinstance(size, int) for size in dims):
@@ -38,6 +44,10 @@ class Perceptron:
         if len(dims) < 2:
             raise ValueError("Dimenshions should have 2 or more elements")
 
-        return Perceptron(
-            layers=[Layer(idim, odim) for idim, odim in zip(dims, dims[1:])]
+        return cls(
+            layers=[
+                lcls(idim, odim) if lcls is FCLayer else lcls(odim, odim)
+                for idim, odim in zip(dims, dims[1:])
+                for lcls in cycle([FCLayer, ACTLayer])
+            ]
         )
