@@ -4,13 +4,20 @@ import numpy as np
 from tpnn.core.types import Probabilty
 from tpnn.core.singleton import Singleton
 
-type Activation = Callable[[float], Probabilty]
+type Activation = (
+    Callable[[np.ndarray[float]], np.ndarray[Probabilty]]
+    | Callable[[float], Probabilty]
+)
 
 # TODO:
 # def softmax(_input: float) -> Probabilty:
 #     return
 # TODO:
 # def argmax(_input: float) -> Probabilty:
+#     return
+
+# TODO:
+# def relu(_input: float) -> Probabilty:
 #     return
 
 

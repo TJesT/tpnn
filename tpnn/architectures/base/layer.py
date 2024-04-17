@@ -54,6 +54,14 @@ class Layer:
     def __call__(self, _input: np.ndarray) -> np.ndarray:
         return self.activation(_input @ self.weights + self.biases)
 
+    def __post_init__(self):
+        if self.weights is None:
+            self.weights = (
+                np.random.random((self.input_dimension, self.output_dimension)) * 2 - 1
+            )
+        if self.biases is None:
+            self.biases = np.random.random(self.output_dimension) * 2 - 1
+
     def dump(self) -> str:
         return json.dumps(self, cls=LayerSerializer)
 
@@ -73,11 +81,3 @@ class Layer:
         path = Path(folder) / filename
         with open(path, "r") as file:
             return cls.from_str(file.read())
-
-    def __post_init__(self):
-        if self.weights is None:
-            self.weights = (
-                np.random.random((self.input_dimension, self.output_dimension)) * 2 - 1
-            )
-        if self.biases is None:
-            self.biases = np.random.random(self.output_dimension) * 2 - 1

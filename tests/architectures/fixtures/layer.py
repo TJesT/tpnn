@@ -1,7 +1,7 @@
 from pytest import fixture
 
-from tpnn.architectures.perceptron import Layer
-from tpnn.architectures.perceptron.activation import ActivationBuilder
+from tpnn.architectures.base import Layer
+from tpnn.architectures.base.activation import ActivationBuilder
 from random import randrange, choice, random
 import numpy as np
 
