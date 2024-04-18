@@ -1,14 +1,14 @@
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, override, overload
+from typing import Any, ClassVar, Literal, override, overload
 
 import numpy as np
 import json
 
 
 from tpnn.core.pipeline import Pipeable
-from .activation import Activation, sigmoid, ActivationBuilder
+from .activation import Differentiable, sigmoid, ActivationBuilder
 
 
 class _Type(Enum):
@@ -63,6 +63,8 @@ class LayerBase(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     type: ClassVar[_Type] = field(default=_Type.BASE, init=False)
     input_dimension: int | tuple[int]
     output_dimension: int | tuple[int]
+    input: np.ndarray = field(default=None, init=False)
+    output: np.ndarray = field(default=None, init=False)
 
     _registered: ClassVar[dict[_Type, "LayerBase"]] = field(
         default={}, init=False, repr=False
@@ -96,17 +98,23 @@ class LayerBase(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
 @dataclass
 class ACTLayer(LayerBase):
     type: ClassVar[_Type] = field(default=_Type.ACT, init=False)
-    activation: Activation = field(default=sigmoid, kw_only=True)
+    activation: Differentiable | Literal["sigmoid", "heaviside", "softmax"] = field(
+        default="sigmoid", kw_only=True
+    )
 
     @override
     def __call__(self, _input: np.ndarray) -> np.ndarray:
-        return self.activation(_input)
+        self.input = _input
+        self.output = self.activation(_input)
+        return self.output
 
     def __post_init__(self):
         if self.input_dimension != self.output_dimension:
             raise ValueError(
                 "Activation Layer should have equal input and output dimensions"
             )
+        if isinstance(self.activation, str):
+            return ActivationBuilder().build(self.activation)
 
 
 @dataclass
@@ -117,7 +125,9 @@ class FCLayer(LayerBase):
 
     @override
     def __call__(self, _input: np.ndarray) -> np.ndarray:
-        return _input @ self.weights + self.biases
+        self.input = _input
+        self.output = self.input @ self.weights + self.biases
+        return self.output
 
     def __post_init__(self):
         if self.weights is None:

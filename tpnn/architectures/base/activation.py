@@ -1,35 +1,42 @@
-from typing import Any, Callable, Literal
 import numpy as np
-
+from typing import Any, Literal
 from tpnn.core.types import Probabilty
 from tpnn.core.singleton import Singleton
+from tpnn.core.differentiable import Differentiable
 
-type Activation = (
-    Callable[[np.ndarray[float]], np.ndarray[Probabilty]]
-    | Callable[[float], Probabilty]
-)
 
-# TODO:
-# def softmax(_input: float) -> Probabilty:
-#     return
-# TODO:
-# def argmax(_input: float) -> Probabilty:
-#     return
+def softmax_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+    e_x = np.exp(_input - np.max(_input))
+    return e_x / np.sum(e_x, axis=0)
+
+
+softmax = Differentiable(softmax_activation, None)
 
 # TODO:
 # def relu(_input: float) -> Probabilty:
 #     return
 
 
-def sigmoid(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+def dsigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
+    sigmoid_value = sigmoid_activation(_input)
+    return sigmoid_value * (1 - sigmoid_value)
+
+
+def sigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
     return 1 / (1 + np.exp(-_input))
 
 
+sigmoid = Differentiable(sigmoid_activation, dsigmoid_activation)
+
+
 def get_heaviside_func(thresh: float):
+    def dheaviside(_input: np.ndarray[float]) -> np.ndarray[float]:
+        return np.where(_input == thresh, np.inf, 0)
+
     def heaviside(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
         return np.greater(_input, thresh).astype(float)
 
-    return heaviside
+    return Differentiable(heaviside, dheaviside)
 
 
 class ActivationBuilder(metaclass=Singleton):
@@ -37,11 +44,12 @@ class ActivationBuilder(metaclass=Singleton):
         self.__map = {
             "sigmoid": sigmoid,
             "heaviside": get_heaviside_func,
+            "softmax": softmax,
         }
 
     def build(
-        self, func: Literal["sigmoid", "heaviside"], *, args: tuple[Any] = ()
-    ) -> Activation:
+        self, func: Literal["sigmoid", "heaviside", "softmax"], *, args: tuple[Any] = ()
+    ) -> Differentiable:
         varnames = self.func_args(func)
         func = self.__map.get(func)
 
@@ -56,7 +64,7 @@ class ActivationBuilder(metaclass=Singleton):
 
         return func
 
-    def func_args(self, func: Literal["sigmoid", "heaviside"]) -> tuple[str]:
+    def func_args(self, func: Literal["sigmoid", "heaviside", "softmax"]) -> tuple[str]:
         func = self.__map.get(func)
         args = func.__code__.co_cellvars
         if "_input" in args:
