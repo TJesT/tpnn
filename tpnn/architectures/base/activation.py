@@ -4,17 +4,37 @@ from tpnn.core.types import Probabilty
 from tpnn.core.singleton import Singleton
 from tpnn.core.differentiable import Differentiable
 
+Activation = Differentiable[np.ndarray[float]]
+
 
 def softmax_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
     e_x = np.exp(_input - np.max(_input))
     return e_x / np.sum(e_x, axis=0)
 
 
-softmax = Differentiable(softmax_activation, None)
+def dsoftmax_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
+    softmaxed_input = softmax_activation(_input).reshape((-1, 1))
+    return _input @ (
+        np.diagflat(softmaxed_input) - np.dot(softmaxed_input, softmaxed_input.T)
+    )
 
-# TODO:
-# def relu(_input: float) -> Probabilty:
-#     return
+
+softmax = Activation(softmax_activation, dsoftmax_activation)
+
+
+def relu_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+    return np.where(_input > 0, _input, 0)
+
+
+def drelu_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+    return np.where(_input > 0, 1, 0)
+
+
+relu = Activation(relu_activation, drelu_activation)
+
+
+def sigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+    return 1 / (1 + np.exp(-_input))
 
 
 def dsigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
@@ -22,11 +42,7 @@ def dsigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
     return sigmoid_value * (1 - sigmoid_value)
 
 
-def sigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
-    return 1 / (1 + np.exp(-_input))
-
-
-sigmoid = Differentiable(sigmoid_activation, dsigmoid_activation)
+sigmoid = Activation(sigmoid_activation, dsigmoid_activation)
 
 
 def get_heaviside_func(thresh: float):
@@ -36,20 +52,24 @@ def get_heaviside_func(thresh: float):
     def heaviside(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
         return np.greater(_input, thresh).astype(float)
 
-    return Differentiable(heaviside, dheaviside)
+    return Activation(heaviside, dheaviside)
 
 
 class ActivationBuilder(metaclass=Singleton):
     def __init__(self) -> None:
         self.__map = {
             "sigmoid": sigmoid,
-            "heaviside": get_heaviside_func,
             "softmax": softmax,
+            "relu": relu,
+            "heaviside": get_heaviside_func,
         }
 
     def build(
-        self, func: Literal["sigmoid", "heaviside", "softmax"], *, args: tuple[Any] = ()
-    ) -> Differentiable:
+        self,
+        func: Literal["sigmoid", "heaviside", "softmax", "relu"],
+        *,
+        args: tuple[Any] = (),
+    ) -> Activation:
         varnames = self.func_args(func)
         func = self.__map.get(func)
 
@@ -66,6 +86,8 @@ class ActivationBuilder(metaclass=Singleton):
 
     def func_args(self, func: Literal["sigmoid", "heaviside", "softmax"]) -> tuple[str]:
         func = self.__map.get(func)
+        if isinstance(func, Differentiable):
+            func = func.func
         args = func.__code__.co_cellvars
         if "_input" in args:
             return ()

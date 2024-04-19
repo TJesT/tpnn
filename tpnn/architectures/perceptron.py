@@ -1,25 +1,17 @@
 import numpy as np
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Iterable, overload, override, Literal
 
 from .base.activation import Differentiable, ActivationBuilder, sigmoid
 from .base.layer import FCLayer, ACTLayer
+from .base.loss import Loss, CEL, SEL
 from tpnn.core import Pipeable
-
-
-# NOTE: Squared Error Loss
-def SEL(target: np.ndarray, output: np.ndarray) -> np.ndarray:
-    return np.power(output - target, 2)
-
-
-# NOTE: Differential of Squared Error Loss
-def dSEL(target: np.ndarray, output: np.ndarray) -> np.ndarray:
-    return 2 * (output - target)
 
 
 @dataclass
 class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     layers: list[FCLayer | ACTLayer]
+    loss: Loss
 
     @override
     def __call__(self, _input: np.ndarray[np.number]) -> np.ndarray[np.number]:
@@ -39,7 +31,9 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # taget: 2
         # dC_da: 2
-        dC_dActivation = dSEL(target, self.layers[-1].output)  # nodeLoss derivative
+        dC_dActivation = self.loss.diff(
+            target, self.layers[-1].output
+        )  # nodeLoss derivative
         # da_dx: 2
         dActivation_dx = self.layers[-1].activation.diff(target)
         # dC_dx: 2
@@ -120,14 +114,22 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
         learn_rate: float = 0.1,
         epochs: int = 1,
     ):
+        print(f"{self.cost(data, targets) = }")
         for _ in range(epochs):
             self.epoch(data, targets, learn_rate=learn_rate)
+            print(f"{self.cost(data, targets) = }")
+
+    def cost(self, data: list[np.ndarray], targets: list[np.ndarray]) -> float:
+        return np.mean(
+            [self.loss(target, row >> self) for row, target in zip(data, targets)]
+        )
 
     @overload
     @classmethod
     def from_dimensions(
         cls,
         dims: Iterable[int],
+        loss: Literal["cross_entropy", "squared_error"],
         *,
         activations: list[Differentiable] = None,
     ) -> "Perceptron": ...
@@ -136,8 +138,9 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     def from_dimensions(
         cls,
         dims: Iterable[int],
+        loss: Literal["cross_entropy", "squared_error"],
         *,
-        activations: list[Literal["sigmoid", "heaviside", "softmax"]] = None,
+        activations: list[Literal["sigmoid", "heaviside", "softmax", "relu"]] = None,
         args_list: list[tuple[Any]] = None,
     ) -> "Perceptron": ...
     @overload
@@ -145,6 +148,7 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     def from_dimensions(
         cls,
         dims: Iterable[int],
+        loss: Literal["cross_entropy", "squared_error"],
         *,
         activations: Differentiable = None,
     ) -> "Perceptron": ...
@@ -153,8 +157,9 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     def from_dimensions(
         cls,
         dims: Iterable[int],
+        loss: Literal["cross_entropy", "squared_error"],
         *,
-        activations: Literal["sigmoid", "heaviside", "softmax"] = None,
+        activations: Literal["sigmoid", "heaviside", "softmax", "relu"] = None,
         args_list: list[tuple[Any]] = None,
     ) -> "Perceptron": ...
 
@@ -162,6 +167,7 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     def from_dimensions(
         cls,
         dims: Iterable[int],
+        loss: Literal["cross_entropy", "squared_error"],
         *,
         activations: Differentiable | list[Differentiable] = None,
         args_list: tuple[Any] | list[tuple[Any]] = None,
@@ -173,8 +179,15 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
         if len(dims) < 2:
             raise ValueError("Dimensions should have 2 or more elements")
 
-        if activations is None or args_list is None:
+        if loss == "cross_entropy":
+            loss = CEL
+        else:
+            loss = SEL
+
+        if activations is None:
             activations = sigmoid
+        if args_list is None:
+            args_list = ()
 
         if not isinstance(activations, list):
             activations = [activations] * (len(dims) - 1)
@@ -192,6 +205,8 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
             for act, args in zip(activations, args_list)
         ]
 
+        print(activations)
+
         return cls(
             layers=[
                 (
@@ -201,33 +216,29 @@ class Perceptron(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
                 )
                 for idim, odim, activation in zip(dims, dims[1:], activations)
                 for lcls in [FCLayer, ACTLayer]
-            ]
+            ],
+            loss=loss,
         )
 
 
 if __name__ == "__main__":
-    perceptron = Perceptron(
-        [
-            FCLayer(3, 4),
-            ACTLayer(4, 4),
-            FCLayer(4, 3),
-            ACTLayer(3, 3, activation="softmax"),
-        ]
+    perceptron = Perceptron.from_dimensions(
+        (3, 4, 3), "cross_entropy", activations=["sigmoid", "softmax"]
     )
     _input = np.array([0, 0.5, 0.3])
-    print(_input, "->", _input >> perceptron)
     data = [np.random.random(size=3) for _ in range(100)]
     targets = [
         (
             np.array([0, 0, 1])
             if (rsum := np.sum(row)) > 1
-            else (np.array([0, 1, 0]) if rsum > 0.5 else np.array([0, 1, 0]))
+            else (np.array([0, 1, 0]) if rsum > 0.5 else np.array([1, 0, 0]))
         )
         for row in data
     ]
-    for i in range(1, 10):
-        perceptron.epoch(data, targets, learn_rate=0.2)
-        print(f"EPOCH#{i}:", _input, "->", _input >> perceptron)
+
+    print(_input, "->", _input >> perceptron)
+
+    perceptron.learn(data, targets, learn_rate=0.6, epochs=10)
 
     _input = np.array([0, 0.5, 0.3])
     print(_input, "->", _input >> perceptron)
