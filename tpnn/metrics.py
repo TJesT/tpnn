@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from .core.types import Label
+from .core.types import Label, Probabilty
 
 
 def entropy(feature: pd.Series) -> float:
@@ -51,6 +51,11 @@ def gain_ratios(dataframe: pd.DataFrame, target: str) -> list[tuple[Label, float
     ]
 
     return [(column, ratio) for ratio, _, column in sorted(ratios, reverse=True)]
+
+
+def accuracy(
+    prediction: np.ndarray[Probabilty], target: np.ndarray[Probabilty]
+) -> float: ...
 
 
 if __name__ == "__main__":

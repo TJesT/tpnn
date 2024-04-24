@@ -1,14 +1,15 @@
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, Literal, override, overload
+from typing import Any, ClassVar, Literal, override
+from types import FunctionType
 
 import numpy as np
 import json
 
 
 from tpnn.core.pipeline import Pipeable
-from .activation import Differentiable, sigmoid, ActivationBuilder
+from .activation import Differentiable, ActivationBuilder
 
 
 class _Type(Enum):
@@ -24,30 +25,44 @@ class _Type(Enum):
 class LayerSerializer(json.JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, LayerBase):
-            return {"type": o.type.value, "body": asdict(o)}
+            layer = asdict(
+                o,
+            )
+            del layer["input"]
+            del layer["output"]
+            if isinstance(o, ACTLayer):
+                layer["activation"] = o.activation
+            return {"type": o.type.value, "layer_body": layer}
+
+        if isinstance(o, Differentiable):
+            args = (
+                [cell.cell_contents for cell in o.func.__closure__]
+                if o.func.__closure__
+                else []
+            )
+            func = o.func.__name__
+            return {
+                "func": func[: func.rfind("_activation")],
+                "args": args,
+            }
 
         if isinstance(o, np.ndarray):
             return {"array": o.tolist()}
-
-        if callable(o):
-            args = (
-                [cell.cell_contents for cell in o.__closure__] if o.__closure__ else []
-            )
-            return {
-                "func": o.__name__,
-                "args": args,
-            }
 
         return super().default(o)
 
 
 class LayerDeserializer(json.JSONDecoder):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, object_hook=self.object_hook, **kwargs)
+    def __init__(self, *args, object_hook=None, **kwargs):
+        super().__init__(
+            *args,
+            object_hook=self.object_hook if object_hook is None else self.object_hook,
+            **kwargs,
+        )
 
     def object_hook(self, _dict):
         match _dict:
-            case {"type": _type, "body": body}:
+            case {"type": _type, "layer_body": body}:
                 cls = LayerBase.from_type(_Type(_type))
                 return cls(**body)
             case {"func": func, "args": args}:
@@ -101,6 +116,7 @@ class ACTLayer(LayerBase):
     activation: Differentiable | Literal["sigmoid", "heaviside", "softmax"] = field(
         default="sigmoid", kw_only=True
     )
+    args: tuple[Any] = field(default=(), kw_only=True, repr=False, compare=False)
 
     @override
     def __call__(self, _input: np.ndarray) -> np.ndarray:
@@ -114,7 +130,8 @@ class ACTLayer(LayerBase):
                 "Activation Layer should have equal input and output dimensions"
             )
         if isinstance(self.activation, str):
-            return ActivationBuilder().build(self.activation)
+            self.activation = ActivationBuilder().build(self.activation, args=self.args)
+            del self.args
 
 
 @dataclass

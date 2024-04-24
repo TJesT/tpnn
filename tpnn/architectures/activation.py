@@ -22,11 +22,11 @@ def dsoftmax_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
 softmax = Activation(softmax_activation, dsoftmax_activation)
 
 
-def relu_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+def relu_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
     return np.where(_input > 0, _input, 0)
 
 
-def drelu_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
+def drelu_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
     return np.where(_input > 0, 1, 0)
 
 
@@ -34,7 +34,16 @@ relu = Activation(relu_activation, drelu_activation)
 
 
 def sigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[Probabilty]:
-    return 1 / (1 + np.exp(-_input))
+    positives = _input >= 0
+    negatives = ~positives
+
+    exp_x_neg = np.exp(_input[negatives])
+
+    sigmoid_result = _input.copy()
+    sigmoid_result[positives] = 1 / (1 + np.exp(-_input[positives]))
+    sigmoid_result[negatives] = exp_x_neg / (1 + exp_x_neg)
+
+    return sigmoid_result
 
 
 def dsigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
@@ -45,7 +54,7 @@ def dsigmoid_activation(_input: np.ndarray[float]) -> np.ndarray[float]:
 sigmoid = Activation(sigmoid_activation, dsigmoid_activation)
 
 
-def get_heaviside_func(thresh: float):
+def get_heaviside(thresh: float):
     def dheaviside(_input: np.ndarray[float]) -> np.ndarray[float]:
         return np.where(_input == thresh, np.inf, 0)
 
@@ -61,7 +70,7 @@ class ActivationBuilder(metaclass=Singleton):
             "sigmoid": sigmoid,
             "softmax": softmax,
             "relu": relu,
-            "heaviside": get_heaviside_func,
+            "heaviside": get_heaviside,
         }
 
     def build(
@@ -84,7 +93,9 @@ class ActivationBuilder(metaclass=Singleton):
 
         return func
 
-    def func_args(self, func: Literal["sigmoid", "heaviside", "softmax"]) -> tuple[str]:
+    def func_args(
+        self, func: Literal["sigmoid", "heaviside", "softmax", "relu"]
+    ) -> tuple[str]:
         func = self.__map.get(func)
         if isinstance(func, Differentiable):
             func = func.func
@@ -96,3 +107,6 @@ class ActivationBuilder(metaclass=Singleton):
     @property
     def funcs(self):
         return tuple(self.__map.keys())
+
+
+print(f"{isinstance(relu, Differentiable) = }")
