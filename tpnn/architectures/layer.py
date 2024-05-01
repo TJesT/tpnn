@@ -1,15 +1,14 @@
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, Literal, override
-from types import FunctionType
+from typing import Any, ClassVar, override
 
 import numpy as np
 import json
 
 
 from tpnn.core.pipeline import Pipeable
-from .activation import Differentiable, ActivationBuilder
+from .activation import Differentiable, ActivationBuilder, AvailableActivations
 
 
 class _Type(Enum):
@@ -35,12 +34,17 @@ class LayerSerializer(json.JSONEncoder):
             return {"type": o.type.value, "layer_body": layer}
 
         if isinstance(o, Differentiable):
+            func = o.func
             args = (
-                [cell.cell_contents for cell in o.func.__closure__]
-                if o.func.__closure__
+                [
+                    cell.cell_contents
+                    for cell in func.__closure__
+                    if not callable(cell.cell_contents)
+                ]
+                if func.__closure__
                 else []
             )
-            func = o.func.__name__
+            func = func.__name__
             return {
                 "func": func[: func.rfind("_activation")],
                 "args": args,
@@ -48,6 +52,8 @@ class LayerSerializer(json.JSONEncoder):
 
         if isinstance(o, np.ndarray):
             return {"array": o.tolist()}
+
+        print(o)
 
         return super().default(o)
 
@@ -113,7 +119,7 @@ class LayerBase(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
 @dataclass
 class ACTLayer(LayerBase):
     type: ClassVar[_Type] = field(default=_Type.ACT, init=False)
-    activation: Differentiable | Literal["sigmoid", "heaviside", "softmax"] = field(
+    activation: Differentiable | AvailableActivations = field(
         default="sigmoid", kw_only=True
     )
     args: tuple[Any] = field(default=(), kw_only=True, repr=False, compare=False)
@@ -152,7 +158,7 @@ class FCLayer(LayerBase):
                 np.random.random((self.input_dimension, self.output_dimension)) * 2 - 1
             )
         if self.biases is None:
-            self.biases = np.random.random(self.output_dimension) * 2 - 1
+            self.biases = np.random.random((1, self.output_dimension)) * 2 - 1
 
 
 for cls in (LayerBase, ACTLayer, FCLayer):
@@ -167,3 +173,16 @@ if __name__ == "__main__":
 
     print(ACTLayer.from_str(act2.dump()))
     print(FCLayer.from_str(fc2.dump()))
+
+    data = np.array(
+        [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [9, 0, 1],
+        ]
+    )
+    print(data[0] >> fc1)
+    print(data[0] >> act1)
+    print(data >> fc1)
+    print(data >> act1)
