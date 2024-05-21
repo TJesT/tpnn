@@ -10,7 +10,7 @@ from ..core.types import pdPipeable, Label, Pipeable
 Encoder = Callable[[pd.DataFrame, Label], pd.DataFrame]
 
 
-def _encode_with_numerics(features: pd.DataFrame, subset: Label) -> pd.DataFrame:
+def _encode_with_numerics(features: pd.DataFrame, subset: list[Label]) -> pd.DataFrame:
     def convert2codes(column: "pd.Series[pd.Categorical]") -> int:
         return column.cat.codes
 
@@ -20,10 +20,21 @@ def _encode_with_numerics(features: pd.DataFrame, subset: Label) -> pd.DataFrame
     return categorical
 
 
-def _encode_with_onehot(
-    features: pd.DataFrame, subset: list[Label], bool=False
-) -> pd.DataFrame:
-    raise NotImplementedError
+def _encode_with_onehot(features: pd.DataFrame, subset: list[Label]) -> pd.DataFrame:
+    codes = _encode_with_numerics(features, subset)
+
+    def encode_column(column: "pd.Series[int]") -> "pd.Series[list[float]]":
+        length = column.max() + 1
+
+        def encode_value(value: int) -> list[float]:
+            onehot = [0.0] * length
+            onehot[value] = 1.0
+
+            return onehot
+
+        return column.apply(encode_value)
+
+    return codes.apply(encode_column, axis=0)
 
 
 def _discretize_by_bins(
@@ -54,9 +65,9 @@ class Encoder(Pipeable[pd.DataFrame, pd.DataFrame]):
 
     def __init__(
         self,
-        columns: Label | list[Label],
+        columns: Label | list[Label] = "all",
         strategy: Literal["codes", "onehot", "bins", "quantiles"] = "codes",
-        /,
+        *,
         bins: list[np.number] = None,
         quantiles: int = None,
     ):
@@ -78,10 +89,14 @@ class Encoder(Pipeable[pd.DataFrame, pd.DataFrame]):
 
     @override
     def __call__(self, _input: pd.DataFrame) -> pd.DataFrame:
-        if not isinstance(self.columns, list):
-            self.columns = [self.columns]
+        columns = self.columns
+        if columns == "all":
+            columns = list(_input.columns)
 
-        encoding_results = self.encoding(_input, subset=self.columns)
+        if not isinstance(columns, list):
+            columns = [columns]
+
+        encoding_results = self.encoding(_input, subset=columns)
         return _input.assign(
             **{column: encoding_results[column] for column in encoding_results.columns}
         )
