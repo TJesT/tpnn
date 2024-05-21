@@ -78,6 +78,9 @@ class LayerDeserializer(json.JSONDecoder):
             case _:
                 return _dict
 
+# TODO inherit LayerBase from Pipeable and BackPipeable 
+#      input >> layer      --- forward
+#      output << layer     --- backward
 
 @dataclass
 class LayerBase(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):

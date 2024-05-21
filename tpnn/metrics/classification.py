@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from ..core.types import Label, Probabilty
+
+type FalsePositiveRates = np.ndarray[float]
+type TruePositiveRates = np.ndarray[float]
 
 
 def entropy(feature: pd.Series) -> float:
@@ -87,6 +91,74 @@ def recall(
 
 def accuracy(predicted_classes: np.ndarray, target_classes: np.ndarray) -> float:
     return (predicted_classes == target_classes).mean()
+
+
+def fpr_tpr(
+    predicted: np.ndarray[float], target: np.ndarray[float]
+) -> tuple[FalsePositiveRates, TruePositiveRates]:
+    threshold_values = sorted(np.unique(predicted), reverse=True)
+    tpr_values = [0]
+    fpr_values = [0]
+    num_positive = np.sum(target)
+    num_negative = len(target) - num_positive
+
+    for threshold in threshold_values:
+        predicted_binary = np.where(predicted >= threshold, 1, 0)
+        true_positives = np.sum((predicted_binary == 1) & (target == 1))
+        false_positives = np.sum((predicted_binary == 1) & (target == 0))
+        tpr = true_positives / num_positive
+        fpr = false_positives / num_negative
+        tpr_values.append(tpr)
+        fpr_values.append(fpr)
+
+    return fpr_values, tpr_values
+
+
+def roc_auc(predicted: np.ndarray[float], target: np.ndarray[float]):
+    classes_count = target.shape[2]
+    clasess_fpr = np.linspace(0, 1, 100)
+    classes_tpr = []
+
+    auc = lambda fpr, tpr: np.trapz(tpr, fpr)
+
+    plt.figure()
+    for class_index in range(classes_count):
+        fpr, tpr = fpr_tpr(predicted[:, :, class_index], target[:, :, class_index])
+        plt.plot(fpr, tpr, label=f"Class {class_index} (AUC = {auc(fpr, tpr):.3f})")
+        interpolated_tpr = np.interp(clasess_fpr, fpr, tpr)
+        classes_tpr.append(interpolated_tpr)
+
+    micro_mean_tpr = np.mean(classes_tpr, axis=0)
+    macro_mean_tpr = np.sum(
+        [
+            tpr * np.sum(target[:, :, class_i], axis=0)[0] / target.shape[0]
+            for class_i, tpr in enumerate(classes_tpr)
+        ],
+        axis=0,
+    )
+
+    plt.plot(
+        clasess_fpr,
+        micro_mean_tpr,
+        label=f"Micro-average ROC (AUC = {auc(clasess_fpr, micro_mean_tpr):.3f})",
+        linestyle="--",
+    )
+    plt.plot(
+        clasess_fpr,
+        macro_mean_tpr,
+        label=f"Macro-average ROC (AUC = {auc(clasess_fpr, macro_mean_tpr):.3f})",
+        linestyle="--",
+    )
+    padding = 0.02
+    plt.plot([0, 1], [0, 1], color="navy", linestyle="--")
+    plt.xlim([0.0 - padding, 1.0])
+    plt.ylim([0.0, 1.0 + padding])
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC")
+    plt.legend(loc="lower right")
+
+    return plt
 
 
 if __name__ == "__main__":
