@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, override
+from typing import Any, ClassVar, Literal, override
+from scipy import signal
 
 import numpy as np
 import json
@@ -19,6 +20,7 @@ class _Type(Enum):
     POOL = "pooling"
     DO = "dropout"
     BN = "batch_normalization"
+    FLAT = "flatten"
 
 
 class LayerSerializer(json.JSONEncoder):
@@ -78,9 +80,11 @@ class LayerDeserializer(json.JSONDecoder):
             case _:
                 return _dict
 
-# TODO inherit LayerBase from Pipeable and BackPipeable 
+
+# TODO inherit LayerBase from Pipeable and BackPipeable
 #      input >> layer      --- forward
 #      output << layer     --- backward
+
 
 @dataclass
 class LayerBase(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
@@ -122,6 +126,7 @@ class LayerBase(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
 @dataclass
 class ACTLayer(LayerBase):
     type: ClassVar[_Type] = field(default=_Type.ACT, init=False)
+    output_dimension: int | tuple[int] = field(default=None, init=False)
     activation: Differentiable | AvailableActivations = field(
         default="sigmoid", kw_only=True
     )
@@ -134,10 +139,7 @@ class ACTLayer(LayerBase):
         return self.output
 
     def __post_init__(self):
-        if self.input_dimension != self.output_dimension:
-            raise ValueError(
-                "Activation Layer should have equal input and output dimensions"
-            )
+        self.output_dimension = self.input_dimension
         if isinstance(self.activation, str):
             self.activation = ActivationBuilder().build(self.activation, args=self.args)
             del self.args
@@ -164,7 +166,102 @@ class FCLayer(LayerBase):
             self.biases = np.random.random((1, self.output_dimension)) * 2 - 1
 
 
-for cls in (LayerBase, ACTLayer, FCLayer):
+@dataclass
+class FLATLayer(LayerBase):
+    type: ClassVar[_Type] = field(default=_Type.FLAT, init=False)
+
+    @override
+    def __call__(
+        self, _input: np.ndarray[np.number, Any]
+    ) -> np.ndarray[np.number, Any]:
+        self.input = _input
+        self.output = np.reshape(_input, self.output_dimension)
+        return self.output
+
+
+@dataclass
+class CONVLayer(LayerBase):
+    type: ClassVar[_Type] = field(default=_Type.CONV, init=False)
+    kernel_size: int = field(init=True)
+    depth: int = field(init=True)
+    kernels: np.ndarray[float] = field(
+        default=None, init=False, kw_only=True, repr=False
+    )
+    biases: np.ndarray[float] = field(
+        default=None, init=False, kw_only=True, repr=False
+    )
+    padding: int = field(default=0, kw_only=True)
+
+    @override
+    def __call__(self, _input: np.ndarray) -> np.ndarray:
+        self.input = _input
+        self.output = np.copy(self.biases)
+        for i in range(self.depth):
+            for j in range(self.input_depth):
+                self.output[i] += signal.correlate2d(
+                    self.input[j], self.kernels[i, j], "valid"
+                )
+        return self.output
+
+    def __post_init__(self):
+        input_depth, input_height, input_width = self.input_dimension
+        self.input_depth = input_depth
+        self.output_shape = (
+            self.depth,
+            input_height - self.kernel_size + 1,
+            input_width - self.kernel_size + 1,
+        )
+        self.kernels_shape = (
+            self.depth,
+            input_depth,
+            self.kernel_size,
+            self.kernel_size,
+        )
+        if self.kernels is None:
+            self.kernels = np.random.randn(*self.kernels_shape)
+        if self.biases is None:
+            self.biases = np.random.randn(*self.output_shape)
+
+
+@dataclass
+class POOLLayer(LayerBase):
+    type: ClassVar[_Type] = field(default=_Type.POOL, init=False)
+    output_dimension: tuple[int] = field(default=None, init=False)
+    pool_size: int
+    pool_type: Literal["max", "mean"] = field(default="max", kw_only=True)
+    stride: int = field(default=0, kw_only=True)
+
+    @override
+    def __call__(
+        self, _input: np.ndarray[np.number, Any]
+    ) -> np.ndarray[np.number, Any]:
+        self.input = _input
+        depth, height, width = _input.shape
+        pooled_height = height // self.pool_size
+        pooled_width = width // self.pool_size
+        self.output = np.zeros(self.output_dimension)
+
+        for depth_iter in range(depth):
+            for pool_y in range(pooled_height):
+                for pool_x in range(pooled_width):
+                    y_start = pool_y * self.pool_size
+                    y_end = y_start + self.pool_size
+                    x_start = pool_x * self.pool_size
+                    x_end = x_start + self.pool_size
+                    window = _input[depth_iter, y_start:y_end, x_start:x_end]
+                    self.output[depth_iter, pool_y, pool_x] = self.pool_func(window)
+
+        return self.output
+
+    def __post_init__(self):
+        self.pool_func = np.mean if self.pool_type == "mean" else np.max
+        depth, height, width = self.input_dimension
+        pooled_height = height // self.pool_size
+        pooled_width = width // self.pool_size
+        self.output_dimension = (depth, pooled_height, pooled_width)
+
+
+for cls in (LayerBase, ACTLayer, FCLayer, CONVLayer, FLATLayer, POOLLayer):
     LayerBase._registered[cls.type] = cls
 
 if __name__ == "__main__":

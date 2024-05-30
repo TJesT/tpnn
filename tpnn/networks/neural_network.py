@@ -5,7 +5,7 @@ from copy import copy
 from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Iterable, overload, override, Literal, Self
+from typing import Any, Generator, override, SupportsIndex, Self
 
 
 from tpnn.core.types import (
@@ -18,6 +18,14 @@ from tpnn.core.types import (
 from .layer import LayerBase, FCLayer, ACTLayer, LayerDeserializer, LayerSerializer
 from .loss import Loss, CEL, SEL
 from .solver import Solver, GradientDescent
+
+
+def batched(
+    data: SupportsIndex, batch_size: int, length: int
+) -> Generator[Any, None, None]:
+    for start in range(0, length, batch_size):
+        end = start + batch_size
+        yield data[start:end]
 
 
 class NeuralNetworkSerializer(LayerSerializer):
@@ -105,6 +113,65 @@ class NeuralNetwork(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
     def get_gradients(
         self, target: np.ndarray
     ) -> tuple[WeightsGradients, BiasesGradients]: ...
+
+    @abstractmethod
+    def update_weights(self, data: np.ndarray, target: np.ndarray) -> None: ...
+
+    def cost(self, data: np.ndarray, targets: np.ndarray) -> float:
+        return np.mean(self.loss(targets, data >> self))
+
+    def learn(
+        self,
+        data: np.ndarray[np.ndarray],
+        target: np.ndarray[np.ndarray],
+        *,
+        learn_rate: float = 0.1,
+        momentum: float = 0.5,
+        epochs: int = 20,
+        batch_size: int = 1,
+        while_not_learned: bool = False,
+        # yield_self: bool = False,
+    ) -> None:
+        if len(data.shape) < 2:
+            raise ValueError(
+                f"{len(data.shape) = }. "
+                "If you want to learn per sample provide full dataset with `batch_size=1 (default)`."
+            )
+        if len(data.shape) < 3:
+            raise ValueError(
+                f"{len(data.shape) = }. Dataset should have 3 dimensions: (n_rows, dim1, dim2)."
+                f"For singledimensional data reshape your dataset from (n_rows, dim) -> (n_rows, 1, dim)."
+            )
+
+        epochs_target = epochs + 1
+        epochs += 1
+        if isinstance(self.solver, GradientDescent):
+            self.solver.learn_rate = learn_rate
+            self.solver.momentum = momentum
+
+        prev_cost = self.cost(data, target)
+        print(f"{prev_cost = }")
+        while while_not_learned or (epochs := epochs - 1):
+            print(f"EPOCH #{epochs_target - epochs}: cost={self.cost(data, target)}")
+            for data_batch, target_batch in zip(
+                batched(data, batch_size, data.shape[0]),
+                batched(target, batch_size, target.shape[0]),
+            ):
+                self.update_weights(data_batch, target_batch)
+                curr_cost = self.cost(data, target)
+
+                # if yield_self:
+                #     yield (self, curr_cost)
+
+                if abs(curr_cost) < abs(self.best_cost):
+                    self.best_cost = curr_cost
+                    self.save_backup()
+
+                if abs(curr_cost) < 10**-10:
+                    self.to_file()
+                    while_not_learned = False
+                    epochs = 1
+                    break
 
     def load_backup(self):
         self.layers = self.backup_layers
