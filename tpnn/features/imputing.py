@@ -69,7 +69,7 @@ class Imputer(pdPipeable):
         self,
         columns: Literal["all"] | list[Label] = "all",
         strategy: Literal["drop", "freq", "mean", "const", "ffill", "bfill"] = "drop",
-        /
+        *,
         fill_value: Any | list[Any] = None,
     ) -> None:
 

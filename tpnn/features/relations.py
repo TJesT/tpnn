@@ -59,7 +59,7 @@ class CorelationFilter(pdPipeable):
     def __init__(
         self,
         strategy: Literal["all", "seq"] = "all",
-        /,
+        *,
         thresh: float = 0.5,
     ) -> None:
         self.filter = self.__strategy_mapping.get(strategy)

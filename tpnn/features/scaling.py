@@ -38,6 +38,7 @@ class Scaler(pdPipeable):
         self.columns = columns
 
     def __call__(self, _input: pd.DataFrame) -> pd.DataFrame:
+        subset = self.columns
         if isinstance(subset, str) and subset == "all":
             subset = _input.columns
 

@@ -33,7 +33,7 @@ class OutliersFilter(pdPipeable):
         self,
         column: Label,
         strategy: Literal["zscore", "cluster"] = "zscore",
-        /,
+        *,
         thresh: Optional[float] = None,
     ) -> None:
         self.column = column
