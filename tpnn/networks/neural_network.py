@@ -130,7 +130,6 @@ class NeuralNetwork(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
         epochs: int = 20,
         batch_size: int = 1,
         while_not_learned: bool = False,
-        # yield_self: bool = False,
     ) -> None:
         if len(data.shape) < 2:
             raise ValueError(
@@ -159,9 +158,6 @@ class NeuralNetwork(Pipeable[np.ndarray[np.number], np.ndarray[np.number]]):
             ):
                 self.update_weights(data_batch, target_batch)
                 curr_cost = self.cost(data, target)
-
-                # if yield_self:
-                #     yield (self, curr_cost)
 
                 if abs(curr_cost) < abs(self.best_cost):
                     self.best_cost = curr_cost

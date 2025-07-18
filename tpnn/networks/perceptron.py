@@ -53,7 +53,6 @@ class Perceptron(NeuralNetwork):
         epochs: int = 20,
         batch_size: int = 1,
         while_not_learned: bool = False,
-        # yield_self: bool = False,
     ) -> None | Generator[tuple["Perceptron", float], None, None]:
         if len(data.shape) < 2:
             raise ValueError(
@@ -83,9 +82,6 @@ class Perceptron(NeuralNetwork):
                 self.update_weights(data_batch, target_batch)
                 curr_cost = self.cost(data, target)
 
-                # if yield_self:
-                #     yield (self, curr_cost)
-
                 if abs(curr_cost) < abs(self.best_cost):
                     self.best_cost = curr_cost
                     self.save_backup()
@@ -96,7 +92,6 @@ class Perceptron(NeuralNetwork):
                     epochs = 1
                     break
 
-                # print(f"{curr_cost = }")
 
     def cost(self, data: np.ndarray, targets: np.ndarray) -> float:
         return np.mean(self.loss(targets, data >> self))
@@ -105,9 +100,6 @@ class Perceptron(NeuralNetwork):
         data >> self
         gradients = self.get_gradients(targets)
         weight_updates, biases_updates = self.solver.get_updates(gradients)
-
-        # print(weight_updates)
-        # print(biases_updates)
 
         for fc, weight_update, biases_update in zip(
             self.layers[::2], weight_updates, biases_updates
@@ -142,23 +134,16 @@ class Perceptron(NeuralNetwork):
 
     def _output_layer_biases_grads(self, targets: np.ndarray[float]) -> BiasesGradient:
         dC_dActivation = self.loss.diff(targets, self.layers[-1].output)  # (k, 1, odim)
-        # print(f"{dC_dActivation.shape = }")
         dActivation_dx = self.layers[-1].activation.diff(targets)  # (k, 1, odim)
-        # print(f"{dActivation_dx.shape = }")
         dC_dx = dActivation_dx * dC_dActivation  # (k, 1, odim)
-        # print(f"{dC_dx.shape = }")
 
         return dC_dx  # (k, 1, odim)
 
     def _output_layer_weights_grads(self, dC_dx: np.ndarray[float]) -> WeightsGradient:
         dC_dx = dC_dx  # (k, 1, odim)
-        # print(f"{dC_dx.shape = }")
         activation_result = self.layers[-2].input  # (k, 1, idim)
-        # print(f"{activation_result.shape = }")
         dx_dw = np.swapaxes(activation_result, 1, 2)  # (k, idim, 1)
-        # print(f"{dx_dw.shape = }")
         dC_dw = dx_dw @ dC_dx  # (k, idim, odim)
-        # print(f"{dC_dw.shape = }")
 
         return dC_dw  # (k, idim, odim)
 
@@ -166,35 +151,23 @@ class Perceptron(NeuralNetwork):
         self, dC_dx: np.ndarray[float], i: int
     ) -> BiasesGradient:
         dC_dx_old = dC_dx  # (k, 1, odim)
-        # print(f"{dC_dx_old.shape = }")
         weights = self.layers[i + 1].weights  # (idim, odim)
-        # print(f"{weights.shape = }")
         dx_old_da = weights.T  # (odim, idim)
-        # print(f"{dx_old_da.shape = }")
         dC_da = dC_dx_old @ dx_old_da  # , (k, 1, idim)
-        # print(f"{dC_da.shape = }")
         activation_diff = self.layers[i].activation.diff(
             self.layers[i].input
         )  # (k, 1, idim)
-        # print(f"{activation_diff.shape = }")
         da_dx = activation_diff  # (k, 1, idim)
-        # print(f"{da_dx.shape = }")
         dC_dx = dC_da * da_dx  # (k, 1, idim)
-        # print(f"{dC_dx.shape = }")
 
         return dC_dx  # (k, 1, idim)
 
     def _other_layers_weights_grads(
         self, dC_dx: np.ndarray[float], i: int
     ) -> WeightsGradient:
-        dC_dx  # (k, 1, odim)
-        # print(f"{dC_dx.shape = }")
         activation_result = self.layers[i - 1].input  # (k, 1, idim)
-        # print(f"{activation_result.shape = }")
         dx_dw = np.swapaxes(activation_result, 1, 2)  # (k, idim, 1)
-        # print(f"{dx_dw.shape = }")
         dC_dw = dx_dw @ dC_dx  # (k, idim, odim)
-        # print(f"{dC_dw.shape = }")
 
         return dC_dw
 
@@ -323,6 +296,5 @@ if __name__ == "__main__":
         learn_rate=0.1,
         momentum=0,
         batch_size=1000,
-        # while_not_learned=True,
         epochs=3,
     )

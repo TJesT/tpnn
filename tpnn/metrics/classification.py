@@ -69,8 +69,6 @@ def precision(
         correct_predictions = (target[indexes] == prediction[indexes]).sum()
         class_precisions[label] = correct_predictions / prediction_counts[label]
 
-    # print(class_precisions)
-
     return np.mean(list(class_precisions.values()))
 
 
@@ -83,8 +81,6 @@ def recall(
         indexes = target == label
         correct_predictions = (target[indexes] == prediction[indexes]).sum()
         class_recalls[label] = correct_predictions / class_counts[label]
-
-    # print(class_recalls)
 
     return np.mean(list(class_recalls.values()))
 
